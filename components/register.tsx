@@ -84,14 +84,14 @@ export default function RegisterPage() {
           disabled={loading}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:bg-blue-400 transition-colors"
         >
-          {loading ? 'Processing...' : 'Create Account'}
+          {loading ? 'Procesando...' : 'Crear cuenta'}
         </button>
       </form>
       <div className="mt-4 text-center">
         <p className="text-gray-600">
-          Already have an account?{' '}
+          Ya tienes una cuenta?{' '}
           <a href="/login" className="text-blue-600 hover:underline">
-            Sign in
+            Iniciar sesion
           </a>
         </p>
       </div>
