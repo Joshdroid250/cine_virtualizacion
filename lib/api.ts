@@ -1,7 +1,28 @@
 // lib/api.ts
-import { UserCredentials, AuthResponse, Reservation, ApiError } from '../types/types';
+import { UserCredentials, AuthResponse, Reservation } from '../types/types';
 
 const API_BASE_URL = 'https://cluster.sayerdis.com';
+
+interface ApiError {
+  message: string;
+  status?: number;
+  errors?: Record<string, string>;
+}
+
+// Función de utilidad para manejar respuestas HTTP
+async function handleResponse<T>(response: Response): Promise<T | ApiError> {
+  const data = await response.json().catch(() => ({}));
+  
+  if (!response.ok) {
+    return {
+      message: data.message || `Request failed with status ${response.status}`,
+      status: response.status,
+      errors: data.errors
+    };
+  }
+
+  return data as T;
+}
 
 export const registerUser = async (userData: UserCredentials): Promise<AuthResponse | ApiError> => {
   try {
@@ -13,18 +34,11 @@ export const registerUser = async (userData: UserCredentials): Promise<AuthRespo
       body: JSON.stringify(userData),
     });
 
-    if (!response.ok) {
-      const error: ApiError = {
-        message: `Registration failed with status ${response.status}`,
-        status: response.status
-      };
-      return error;
-    }
-
-    return await response.json() as AuthResponse;
+    return await handleResponse<AuthResponse>(response);
   } catch (error) {
     return {
-      message: error instanceof Error ? error.message : 'Unknown error during registration'
+      message: error instanceof Error ? error.message : 'Network error during registration',
+      status: 500
     };
   }
 };
@@ -39,18 +53,11 @@ export const loginUser = async (credentials: UserCredentials): Promise<AuthRespo
       body: JSON.stringify(credentials),
     });
 
-    if (!response.ok) {
-      const error: ApiError = {
-        message: `Login failed with status ${response.status}`,
-        status: response.status
-      };
-      return error;
-    }
-
-    return await response.json() as AuthResponse;
+    return await handleResponse<AuthResponse>(response);
   } catch (error) {
     return {
-      message: error instanceof Error ? error.message : 'Unknown error during login'
+      message: error instanceof Error ? error.message : 'Network error during login',
+      status: 500
     };
   }
 };
@@ -69,18 +76,11 @@ export const createReservation = async (
       body: JSON.stringify(reservationData),
     });
 
-    if (!response.ok) {
-      const error: ApiError = {
-        message: `Reservation creation failed with status ${response.status}`,
-        status: response.status
-      };
-      return error;
-    }
-
-    return await response.json() as Reservation;
+    return await handleResponse<Reservation>(response);
   } catch (error) {
     return {
-      message: error instanceof Error ? error.message : 'Unknown error during reservation creation'
+      message: error instanceof Error ? error.message : 'Network error during reservation creation',
+      status: 500
     };
   }
 };
@@ -94,17 +94,16 @@ export const getUserReservations = async (token: string): Promise<Reservation[] 
       },
     });
 
-    if (!response.ok) {
-      return {
-        message: `Error al obtener reservas: ${response.status}`,
-        status: response.status
-      };
-    }
-
-    return await response.json() as Reservation[];
+    return await handleResponse<Reservation[]>(response);
   } catch (error) {
     return {
-      message: error instanceof Error ? error.message : 'Error desconocido'
+      message: error instanceof Error ? error.message : 'Network error fetching reservations',
+      status: 500
     };
   }
 };
+
+// Función de utilidad para verificar si la respuesta es un error
+export function isApiError(response: any): response is ApiError {
+  return response && typeof response.message === 'string';
+}
