@@ -1,7 +1,7 @@
 // lib/api.ts
 import { UserCredentials, AuthResponse, Reservation } from '../types/types';
 
-const API_BASE_URL = 'https://cluster.sayerdis.com';
+const API_BASE_URL = 'http://localhost:3000';
 
 interface ApiError {
   message: string;
@@ -24,18 +24,45 @@ async function handleResponse<T>(response: Response): Promise<T | ApiError> {
   return data as T;
 }
 
-export const registerUser = async (userData: UserCredentials): Promise<AuthResponse | ApiError> => {
+export const registerUser = async (
+  userData: {
+    name: string;
+    email: string;
+    password: string;
+    role: number;
+  }
+): Promise<{ message: string } | { message: string; status: number }> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(userData),
+      body: JSON.stringify({
+        name: userData.name,
+        email: userData.email,
+        password: userData.password,
+        role: userData.role
+      }),
     });
 
-    return await handleResponse<AuthResponse>(response);
+    if (!response.ok) {
+      // Manejo de errores de la API
+      const errorData = await response.json();
+      return {
+        message: errorData.message || 'Error during registration',
+        status: response.status
+      };
+    }
+
+    // Respuesta exitosa
+    const data: { message: string } = await response.json();
+    return {
+      message: data.message
+    };
+
   } catch (error) {
+    // Manejo de errores de red
     return {
       message: error instanceof Error ? error.message : 'Network error during registration',
       status: 500
@@ -43,17 +70,35 @@ export const registerUser = async (userData: UserCredentials): Promise<AuthRespo
   }
 };
 
-export const loginUser = async (credentials: UserCredentials): Promise<AuthResponse | ApiError> => {
+export const loginUser = async (credentials: { email: string; password: string }): Promise<{ message: string; token?: string } | { message: string; status: number }> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password
+      }),
     });
 
-    return await handleResponse<AuthResponse>(response);
+    if (!response.ok) {
+      // Si la respuesta no es exitosa, manejamos el error
+      const errorData = await response.json();
+      return {
+        message: errorData.message || 'Error during login',
+        status: response.status
+      };
+    }
+
+    // Si la respuesta es exitosa, devolvemos los datos
+    const data: { message: string; token: string } = await response.json();
+    return {
+      message: data.message,
+      token: data.token
+    };
+
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : 'Network error during login',
