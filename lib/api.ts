@@ -24,6 +24,7 @@ async function handleResponse<T>(response: Response): Promise<T | ApiError> {
   return data as T;
 }
 
+
 export const registerUser = async (
   userData: {
     name: string;
@@ -107,24 +108,46 @@ export const loginUser = async (credentials: { email: string; password: string }
   }
 };
 
+// lib/api.ts (modificaciones clave)
+
 export const createReservation = async (
   reservationData: Omit<Reservation, 'id' | 'userId'>,
-  token: string
+  token?: string  // Hacer el token opcional para manejar casos donde no exista
 ): Promise<Reservation | ApiError> => {
   try {
+    // Obtener el token de sessionStorage si no se proporcionó
+    const authToken = token || sessionStorage.getItem('authToken');
+    
+    if (!authToken) {
+      return {
+        message: 'No se encontró token de autenticación',
+        status: 401
+      };
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/reservations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${authToken}`  // Usar el token obtenido
       },
       body: JSON.stringify(reservationData),
     });
 
+    // Manejo específico de errores de autenticación
+    if (response.status === 403) {
+      // Limpiar el token inválido
+      sessionStorage.removeItem('authToken');
+      return {
+        message: 'Sesión expirada o token inválido. Por favor inicie sesión nuevamente.',
+        status: 403
+      };
+    }
+
     return await handleResponse<Reservation>(response);
   } catch (error) {
     return {
-      message: error instanceof Error ? error.message : 'Network error during reservation creation',
+      message: error instanceof Error ? error.message : 'Error de conexión al crear reserva',
       status: 500
     };
   }
@@ -198,10 +221,7 @@ export const roomService = {
 };
 
 export const reservationService = {
-  create: async (
-    reservationData: Omit<Reservation, 'id'>,
-    token: string
-  ): Promise<Reservation | ApiError> => {
+  create: async (reservationData: Omit<Reservation, 'id'>, token: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/reservations`, {
         method: 'POST',
@@ -211,12 +231,20 @@ export const reservationService = {
         },
         body: JSON.stringify(reservationData)
       });
-      return await handleResponse<Reservation>(response);
+
+      if (!response.ok) {
+        // Obtener el mensaje de error del servidor
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error del servidor:', errorData);
+        throw new Error(errorData.message || `Error ${response.status}`);
+      }
+
+      return await response.json();
     } catch (error) {
-      return {
-        message: error instanceof Error ? error.message : 'Error al crear reserva',
-        status: 500
-      };
+      console.error('Error en reservationService:', error);
+      throw error; // Re-lanzar para manejo en el componente
     }
   }
 };
+
+
