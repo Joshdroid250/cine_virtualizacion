@@ -1,5 +1,5 @@
 // lib/api.ts
-import { UserCredentials, AuthResponse, Reservation } from '../types/types';
+import { UserCredentials, AuthResponse, Reservation, Funcion, Movie, Room } from '../types/types';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -152,3 +152,71 @@ export const getUserReservations = async (token: string): Promise<Reservation[] 
 export function isApiError(response: any): response is ApiError {
   return response && typeof response.message === 'string';
 }
+
+
+export const movieService = {
+  getById: async (id: number): Promise<Movie | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/movies/${id}`);
+      return await handleResponse<Movie>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al cargar película',
+        status: 500
+      };
+    }
+  }
+};
+
+export const funcionService = {
+  getAll: async (): Promise<Funcion[] | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/funcion`);
+      return await handleResponse<Funcion[]>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al cargar funciones',
+        status: 500
+      };
+    }
+  }
+};
+
+
+export const roomService = {
+  getById: async (id: number): Promise<Room | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/rooms/${id}`);
+      return await handleResponse<Room>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al cargar sala',
+        status: 500
+      };
+    }
+  }
+};
+
+export const reservationService = {
+  create: async (
+    reservationData: Omit<Reservation, 'id'>,
+    token: string
+  ): Promise<Reservation | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reservations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(reservationData)
+      });
+      return await handleResponse<Reservation>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al crear reserva',
+        status: 500
+      };
+    }
+  }
+};
