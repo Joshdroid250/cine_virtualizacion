@@ -1,14 +1,14 @@
-// types.ts
+// types/reservationTypes.ts
 export interface UserCredentials {
-    email: string;
-    password: string;
-  }
-  
-  export interface AuthResponse {
-    token: string;
-  }
-  
-  export interface Reservation {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  token: string;
+}
+
+export interface Reservation {
   id?: number;
   date: string; // formato YYYY-MM-DD
   idfuncion: number;
@@ -16,19 +16,19 @@ export interface UserCredentials {
   columna: number;
   users_iduser?: number;
 }
-  
-  export interface ApiError {
-    message: string;
-    status?: number;
-  }
 
-  export interface Movie {
+export interface ApiError {
+  message: string;
+  status?: number;
+}
+
+export interface Movie {
   idmovie: number;
   titulo: string;
   duration: string;
   description: string;
   genre: string;
-  posterImage: string; // Cambiado a string para la URL
+  posterImage: string;
 }
 
 export interface Funcion {
@@ -44,4 +44,18 @@ export interface Room {
   nombre: string;
   fila: number;
   columnas: number;
+}
+
+export interface SeatPosition {
+  fila: number;
+  columna: number;
+}
+
+export interface OccupiedSeatsResponse {
+  occupiedSeats: SeatPosition[];
+}
+
+export interface FuncionWithMovie {
+  funcion: Omit<Funcion, 'id_movie'>;
+  movie: Movie;
 }

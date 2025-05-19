@@ -9,6 +9,10 @@ interface ApiError {
   errors?: Record<string, string>;
 }
 
+interface OccupiedSeatsResponse {
+  occupiedSeats: { fila: number; columna: number }[];
+}
+
 // Función de utilidad para manejar respuestas HTTP
 async function handleResponse<T>(response: Response): Promise<T | ApiError> {
   const data = await response.json().catch(() => ({}));
@@ -244,7 +248,25 @@ export const reservationService = {
       console.error('Error en reservationService:', error);
       throw error; // Re-lanzar para manejo en el componente
     }
+  },
+
+  getOccupiedSeats: async (idFuncion: number, token: string): Promise<OccupiedSeatsResponse | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reservations/occupied-seats/${idFuncion}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Error ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error en getOccupiedSeats:', error);
+      throw error;
+    }
   }
 };
-
-

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { funcionService, movieService, roomService, reservationService } from '@/lib/api';
 import { isApiError } from '@/lib/api';
 import { useRouter } from 'next/navigation';
-import QRCode from 'react-qr-code';
+import Image from 'next/image';
 
 type FuncionWithMovie = {
   funcion: {
@@ -27,7 +27,8 @@ export default function FuncionReserva() {
   const [loading, setLoading] = useState({
     funciones: true,
     sala: false,
-    reserva: false
+    reserva: false,
+    occupiedSeats: false
   });
   const [error, setError] = useState<string | null>(null);
   const [selectedFuncion, setSelectedFuncion] = useState<FuncionWithMovie | null>(null);
@@ -37,6 +38,8 @@ export default function FuncionReserva() {
   const [paymentMethod, setPaymentMethod] = useState<string>('credit');
   const [reservationId, setReservationId] = useState<string>('');
   const [reservationDetails, setReservationDetails] = useState<any>(null);
+  const [occupiedSeats, setOccupiedSeats] = useState<{fila: number, columna: number}[]>([]);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   // Cargar funciones y películas
   useEffect(() => {
@@ -83,31 +86,50 @@ export default function FuncionReserva() {
     loadData();
   }, []);
 
-  // Cargar sala cuando se selecciona una función
+  // Cargar sala y asientos ocupados cuando se selecciona una función
   useEffect(() => {
     if (!selectedFuncion) return;
 
-    const loadSala = async () => {
+    const loadSalaAndSeats = async () => {
       try {
-        setLoading(prev => ({...prev, sala: true}));
+        setLoading(prev => ({...prev, sala: true, occupiedSeats: true}));
         setError(null);
         setSelectedSeat(null);
 
+        // Cargar sala
         const salaResponse = await roomService.getById(selectedFuncion.funcion.salas_idsalas);
         if (isApiError(salaResponse)) {
           throw new Error(salaResponse.message);
         }
-
         setSala(salaResponse);
+
+        // Cargar asientos ocupados
+        const token = sessionStorage.getItem('authToken');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+        
+        const seatsResponse = await reservationService.getOccupiedSeats(selectedFuncion.funcion.id, token);
+        if (isApiError(seatsResponse)) {
+          throw new Error(seatsResponse.message);
+        }
+        setOccupiedSeats(seatsResponse.occupiedSeats);
+
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar sala');
       } finally {
-        setLoading(prev => ({...prev, sala: false}));
+        setLoading(prev => ({...prev, sala: false, occupiedSeats: false}));
       }
     };
 
-    loadSala();
+    loadSalaAndSeats();
   }, [selectedFuncion]);
+
+  // Verificar si un asiento está ocupado
+  const isSeatOccupied = (fila: number, columna: number) => {
+    return occupiedSeats.some(seat => seat.fila === fila && seat.columna === columna);
+  };
 
   const handlePayment = () => {
     if (!selectedFuncion || !selectedSeat) return;
@@ -232,7 +254,7 @@ export default function FuncionReserva() {
           {selectedFuncion && sala && (
             <div className="mb-8">
               <h2 className="text-xl font-semibold mb-4">2. Selecciona tu asiento</h2>
-              {loading.sala ? (
+              {loading.sala || loading.occupiedSeats ? (
                 <p>Cargando disposición de sala...</p>
               ) : (
                 <>
@@ -243,16 +265,21 @@ export default function FuncionReserva() {
                       {Array.from({length: sala.fila * sala.columnas}).map((_, index) => {
                         const fila = Math.floor(index / sala.columnas) + 1;
                         const columna = (index % sala.columnas) + 1;
+                        const ocupado = isSeatOccupied(fila, columna);
                         
                         return (
                           <button
                             key={index}
-                            onClick={() => setSelectedSeat({fila, columna})}
+                            onClick={() => !ocupado && setSelectedSeat({fila, columna})}
                             className={`aspect-square flex items-center justify-center rounded ${
-                              selectedSeat?.fila === fila && selectedSeat?.columna === columna
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-white hover:bg-gray-200'
+                              ocupado 
+                                ? 'bg-red-200 cursor-not-allowed' 
+                                : selectedSeat?.fila === fila && selectedSeat?.columna === columna
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white hover:bg-gray-200'
                             }`}
+                            disabled={ocupado}
+                            title={ocupado ? 'Asiento ocupado' : `Asiento ${fila}-${columna}`}
                           >
                             {fila}-{columna}
                           </button>
@@ -264,6 +291,21 @@ export default function FuncionReserva() {
                   <div className="text-center text-sm text-gray-600 mb-4">
                     Pantalla
                     <div className="w-full h-1 bg-gray-400 my-1"></div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-4 mb-4">
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-blue-600 mr-2"></div>
+                      <span>Seleccionado</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-red-200 mr-2"></div>
+                      <span>Ocupado</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-white border mr-2"></div>
+                      <span>Disponible</span>
+                    </div>
                   </div>
                 </>
               )}
@@ -382,23 +424,25 @@ export default function FuncionReserva() {
         </div>
       )}
 
-      {/* Paso 3: Confirmación con QR */}
+      {/* Paso 3: Confirmación */}
       {step === 'confirmation' && reservationDetails && (
         <div className="text-center">
           <h2 className="text-2xl font-bold text-green-600 mb-4">¡Reserva confirmada!</h2>
-          <p className="mb-6">Tu entrada ha sido reservada exitosamente. Presenta este código QR en taquilla:</p>
+          <p className="mb-6">Tu entrada ha sido reservada exitosamente. Presenta este código en taquilla:</p>
           
-          <div className="mx-auto w-max p-4 bg-white rounded-lg shadow-lg mb-6">
-            <div className="p-2 bg-white">
-              <QRCode 
-                value={reservationDetails.id} 
-                size={180}
-                level="H"
-                fgColor="#000000"
-                bgColor="#ffffff"
+          <button
+            onClick={() => setShowQRModal(true)}
+            className="mx-auto mb-6 p-4 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-48 h-48 relative">
+              <Image
+                src="https://hexdocs.pm/qr_code/docs/qrcode.svg"
+                alt="Código QR de reserva"
+                fill
+                className="rounded-lg object-contain"
               />
             </div>
-          </div>
+          </button>
 
           <div className="bg-gray-50 p-4 rounded-lg max-w-md mx-auto mb-6 text-left">
             <h3 className="font-bold mb-2">Detalles de la reserva:</h3>
@@ -422,6 +466,42 @@ export default function FuncionReserva() {
           >
             Hacer nueva reserva
           </button>
+
+          {/* Modal QR */}
+          {showQRModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold">Código QR de tu reserva</h3>
+                  <button 
+                    onClick={() => setShowQRModal(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="w-full aspect-square relative">
+                  <Image
+                    src="https://hexdocs.pm/qr_code/docs/qrcode.svg"
+                    alt="Código QR de reserva"
+                    fill
+                    className="rounded-lg object-contain"
+                  />
+                </div>
+                <div className="mt-4 text-sm text-gray-600">
+                  <p>Muestra este código en taquilla para canjear tu entrada</p>
+                </div>
+                <button
+                  onClick={() => setShowQRModal(false)}
+                  className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
