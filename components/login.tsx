@@ -30,8 +30,12 @@ export default function LoginPage() {
       const result = await loginUser(formData);
       
       if ('token' in result) {
-        sessionStorage.setItem('authToken', result.token);
-        router.push('/reservar');
+        if (typeof result.token === 'string') {
+          sessionStorage.setItem('authToken', result.token);
+          router.push('/reservar');
+        } else {
+          setError('Token de autenticación inválido');
+        }
       } else {
         setError(result.message || 'Error desconocido');
       }
@@ -41,6 +45,8 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-white-900 p-4">

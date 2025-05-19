@@ -3,6 +3,28 @@ import { useEffect, useState } from 'react';
 import { funcionService, movieService, roomService, reservationService } from '@/lib/api';
 import { isApiError } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { jwtDecode } from 'jwt-decode';
+
+// Material UI imports
+import {
+  Box,
+  Button,
+  Typography,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Paper,
+  CircularProgress,
+  Snackbar,
+  Alert,
+  TextField
+} from '@mui/material';
+import Grid from '@mui/material/Grid';
 
 type FuncionWithMovie = {
   funcion: {
@@ -32,18 +54,27 @@ export default function FuncionReserva() {
   const [error, setError] = useState<string | null>(null);
   const [selectedFuncion, setSelectedFuncion] = useState<FuncionWithMovie | null>(null);
   const [sala, setSala] = useState<{ idsalas: number; nombre: string; fila: number; columnas: number } | null>(null);
-  const [selectedSeat, setSelectedSeat] = useState<{fila: number, columna: number} | null>(null);
+  const [selectedSeat, setSelectedSeat] = useState<{ fila: number, columna: number } | null>(null);
   const [step, setStep] = useState<Step>('selection');
   const [paymentMethod, setPaymentMethod] = useState<string>('credit');
   const [reservationDetails, setReservationDetails] = useState<any>(null);
-  const [occupiedSeats, setOccupiedSeats] = useState<{fila: number, columna: number}[]>([]);
+  const [occupiedSeats, setOccupiedSeats] = useState<{ fila: number, columna: number }[]>([]);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+
+  // Función para cerrar sesión
+  const handleLogout = () => {
+    sessionStorage.removeItem('authToken');
+    setSelectedFuncion(null);
+    setSelectedSeat(null);
+    setStep('selection');
+    router.push('/login');
+  };
 
   // Cargar funciones y películas
   useEffect(() => {
     const loadData = async () => {
       try {
-        setLoading(prev => ({...prev, funciones: true}));
+        setLoading(prev => ({ ...prev, funciones: true }));
         setError(null);
 
         const funcionesResponse = await funcionService.getAll();
@@ -77,7 +108,7 @@ export default function FuncionReserva() {
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido');
       } finally {
-        setLoading(prev => ({...prev, funciones: false}));
+        setLoading(prev => ({ ...prev, funciones: false }));
       }
     };
 
@@ -90,7 +121,7 @@ export default function FuncionReserva() {
 
     const loadSalaAndSeats = async () => {
       try {
-        setLoading(prev => ({...prev, sala: true, occupiedSeats: true}));
+        setLoading(prev => ({ ...prev, sala: true, occupiedSeats: true }));
         setError(null);
         setSelectedSeat(null);
 
@@ -107,7 +138,7 @@ export default function FuncionReserva() {
           router.push('/login');
           return;
         }
-        
+
         const seatsResponse = await reservationService.getOccupiedSeats(selectedFuncion.funcion.id, token);
         if (isApiError(seatsResponse)) {
           throw new Error(seatsResponse.message);
@@ -117,7 +148,7 @@ export default function FuncionReserva() {
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar sala');
       } finally {
-        setLoading(prev => ({...prev, sala: false, occupiedSeats: false}));
+        setLoading(prev => ({ ...prev, sala: false, occupiedSeats: false }));
       }
     };
 
@@ -134,331 +165,391 @@ export default function FuncionReserva() {
   };
 
   const handleReservation = async () => {
-  if (!selectedFuncion || !selectedSeat) return;
+    if (!selectedFuncion || !selectedSeat) return;
 
-  try {
-    setLoading(prev => ({...prev, reserva: true}));
-    setError(null);
-
-    const token = sessionStorage.getItem('authToken');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    const fecha = selectedFuncion.funcion.fecha.split('T')[0];
-    const reservationData = {
-      date: fecha,
-      idfuncion: selectedFuncion.funcion.id,
-      fila: selectedSeat.fila,
-      columna: selectedSeat.columna,
-      users_iduser: 1
-    };
-
-    // Intenta hacer la reserva pero no dependemos de la respuesta
     try {
-      await reservationService.create(reservationData, token);
-    } catch (apiError) {
-      console.log("El API puede haber fallado, pero continuamos con la simulación");
+      setLoading(prev => ({ ...prev, reserva: true }));
+      setError(null);
+
+      const token = sessionStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      // Decodifica el token para obtener el id del usuario
+      let userId = 1; // fallback
+      try {
+        const decoded: any = jwtDecode(token);
+        userId = decoded.id || decoded.userId || decoded.sub || 1;
+      } catch (e) {
+        console.warn("No se pudo decodificar el token, usando id 1 por defecto");
+      }
+
+      const fecha = selectedFuncion.funcion.fecha.split('T')[0];
+      const reservationData = {
+        date: fecha,
+        idfuncion: selectedFuncion.funcion.id,
+        fila: selectedSeat.fila,
+        columna: selectedSeat.columna,
+        users_iduser: userId
+      };
+
+      try {
+        await reservationService.create(reservationData, token);
+      } catch (apiError) {
+        console.log("El API puede haber fallado, pero continuamos con la simulación");
+      }
+
+      setReservationDetails({
+        id: `SIM-${Date.now()}`,
+        movie: selectedFuncion.movie.titulo,
+        date: new Date(selectedFuncion.funcion.fecha).toLocaleDateString(),
+        time: selectedFuncion.funcion.hora.split(':').slice(0, 2).join(':'),
+        sala: sala?.nombre || 'Sala desconocida',
+        seat: `Fila ${selectedSeat.fila}, Columna ${selectedSeat.columna}`,
+        price: 12.50
+      });
+
+      setShowConfirmationModal(true);
+      setStep('confirmation');
+
+    } catch (error) {
+      console.error('Error inesperado:', error);
+      setError('Ocurrió un error inesperado. Por favor intenta nuevamente.');
+    } finally {
+      setLoading(prev => ({ ...prev, reserva: false }));
     }
+  };
 
-    // Crear detalles de reserva simulados (siempre)
-    setReservationDetails({
-      id: `SIM-${Date.now()}`,
-      movie: selectedFuncion.movie.titulo,
-      date: new Date(selectedFuncion.funcion.fecha).toLocaleDateString(),
-      time: selectedFuncion.funcion.hora.split(':').slice(0, 2).join(':'),
-      sala: sala?.nombre || 'Sala desconocida',
-      seat: `Fila ${selectedSeat.fila}, Columna ${selectedSeat.columna}`,
-      price: 12.50
-    });
-
-    // Mostrar el modal de confirmación SIEMPRE
-    setShowConfirmationModal(true);
-    setStep('confirmation');
-
-  } catch (error) {
-    console.error('Error inesperado:', error);
-    setError('Ocurrió un error inesperado. Por favor intenta nuevamente.');
-  } finally {
-    setLoading(prev => ({...prev, reserva: false}));
-  }
-};
-
-  if (loading.funciones) return <div className="p-4 text-center">Cargando funciones...</div>;
-  if (error) return <div className="p-4 text-red-500 text-center">{error}</div>;
+  if (loading.funciones) return (
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
+      <CircularProgress />
+    </Box>
+  );
+  if (error) return (
+    <Snackbar open autoHideDuration={6000}>
+      <Alert severity="error" sx={{ width: '100%' }}>
+        {error}
+      </Alert>
+    </Snackbar>
+  );
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">Reserva de Entradas</h1>
+    <Box maxWidth={700} mx="auto" p={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <Typography variant="h4" fontWeight="bold">Reserva de Entradas</Typography>
+        <Button
+          onClick={handleLogout}
+          variant="contained"
+          color="error"
+        >
+          Cerrar sesión
+        </Button>
+      </Box>
 
       {/* Paso 1: Selección de función y asiento */}
       {step === 'selection' && (
         <>
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">1. Selecciona una función</h2>
-            <select
-              value={selectedFuncion?.funcion.id || ''}
-              onChange={(e) => {
-                const funcId = Number(e.target.value);
-                const selected = funciones.find(f => f.funcion.id === funcId);
-                setSelectedFuncion(selected || null);
-              }}
-              className="w-full p-2 border rounded-lg"
-              disabled={loading.sala}
-            >
-              <option value="">-- Seleccione una función --</option>
-              {funciones.map((item) => (
-                <option key={item.funcion.id} value={item.funcion.id}>
-                  {item.movie.titulo} - {new Date(item.funcion.fecha).toLocaleDateString()} {item.funcion.hora}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Box mb={4}>
+            <Typography variant="h6" mb={2}>1. Selecciona una función</Typography>
+            <FormControl fullWidth>
+              <InputLabel id="funcion-select-label">Función</InputLabel>
+              <Select
+                labelId="funcion-select-label"
+                value={selectedFuncion?.funcion.id || ''}
+                label="Función"
+                onChange={(e) => {
+                  const funcId = Number(e.target.value);
+                  const selected = funciones.find(f => f.funcion.id === funcId);
+                  setSelectedFuncion(selected || null);
+                }}
+                disabled={loading.sala}
+              >
+                <MenuItem value="">
+                  <em>-- Seleccione una función --</em>
+                </MenuItem>
+                {funciones.map((item) => (
+                  <MenuItem key={item.funcion.id} value={item.funcion.id}>
+                    {item.movie.titulo} - {new Date(item.funcion.fecha).toLocaleDateString()} {item.funcion.hora}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
 
           {selectedFuncion && (
-            <div className="mb-8 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-start gap-4">
-                <img 
-                  src={selectedFuncion.movie.posterImage} 
-                  alt={selectedFuncion.movie.titulo}
-                  className="w-24 h-32 object-cover rounded"
-                />
-                <div>
-                  <h3 className="text-lg font-bold">{selectedFuncion.movie.titulo}</h3>
-                  <p className="text-sm">
-                    <strong>Fecha:</strong> {new Date(selectedFuncion.funcion.fecha).toLocaleDateString()}
-                  </p>
-                  <p className="text-sm">
-                    <strong>Hora:</strong> {selectedFuncion.funcion.hora.split(':').slice(0, 2).join(':')}
-                  </p>
+            <Paper elevation={2} sx={{ mb: 4, p: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item>
+                  <img
+                    src={selectedFuncion.movie.posterImage}
+                    alt={selectedFuncion.movie.titulo}
+                    style={{ width: 96, height: 128, objectFit: 'cover', borderRadius: 8 }}
+                  />
+                </Grid>
+                <Grid item xs>
+                  <Typography variant="h6">{selectedFuncion.movie.titulo}</Typography>
+                  <Typography variant="body2"><strong>Fecha:</strong> {new Date(selectedFuncion.funcion.fecha).toLocaleDateString()}</Typography>
+                  <Typography variant="body2"><strong>Hora:</strong> {selectedFuncion.funcion.hora.split(':').slice(0, 2).join(':')}</Typography>
                   {sala && (
-                    <p className="text-sm">
-                      <strong>Sala:</strong> {sala.nombre}
-                    </p>
+                    <Typography variant="body2"><strong>Sala:</strong> {sala.nombre}</Typography>
                   )}
-                </div>
-              </div>
-            </div>
+                </Grid>
+              </Grid>
+            </Paper>
           )}
 
           {selectedFuncion && sala && (
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold mb-4">2. Selecciona tu asiento</h2>
+            <Box mb={4}>
+              <Typography variant="h6" mb={2}>2. Selecciona tu asiento</Typography>
               {loading.sala || loading.occupiedSeats ? (
-                <p>Cargando disposición de sala...</p>
+                <Box display="flex" alignItems="center" gap={2}><CircularProgress size={24} /> Cargando disposición de sala...</Box>
               ) : (
                 <>
-                  <div className="bg-gray-100 p-4 rounded-lg mb-4">
-                    <div className="grid gap-2" style={{
-                      gridTemplateColumns: `repeat(${sala.columnas}, minmax(0, 1fr))`
-                    }}>
-                      {Array.from({length: sala.fila * sala.columnas}).map((_, index) => {
+                  <Paper sx={{ p: 2, mb: 2 }}>
+                    <Grid container spacing={1}>
+                      {Array.from({ length: sala.fila * sala.columnas }).map((_, index) => {
                         const fila = Math.floor(index / sala.columnas) + 1;
                         const columna = (index % sala.columnas) + 1;
                         const ocupado = isSeatOccupied(fila, columna);
-                        
+
                         return (
-                          <button
-                            key={index}
-                            onClick={() => !ocupado && setSelectedSeat({fila, columna})}
-                            className={`aspect-square flex items-center justify-center rounded ${
-                              ocupado 
-                                ? 'bg-red-200 cursor-not-allowed' 
+                          <Grid item key={index}>
+                            <Button
+                              variant={ocupado
+                                ? "contained"
                                 : selectedSeat?.fila === fila && selectedSeat?.columna === columna
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-white hover:bg-gray-200'
-                            }`}
-                            disabled={ocupado}
-                            title={ocupado ? 'Asiento ocupado' : `Asiento ${fila}-${columna}`}
-                          >
-                            {fila}-{columna}
-                          </button>
+                                  ? "contained"
+                                  : "outlined"}
+                              color={ocupado
+                                ? "error"
+                                : selectedSeat?.fila === fila && selectedSeat?.columna === columna
+                                  ? "primary"
+                                  : "inherit"}
+                              size="small"
+                              disabled={ocupado}
+                              onClick={() => !ocupado && setSelectedSeat({ fila, columna })}
+                              sx={{ minWidth: 40, minHeight: 40, fontSize: 12 }}
+                            >
+                              {fila}-{columna}
+                            </Button>
+                          </Grid>
                         );
                       })}
-                    </div>
-                  </div>
-                  
-                  <div className="text-center text-sm text-gray-600 mb-4">
-                    Pantalla
-                    <div className="w-full h-1 bg-gray-400 my-1"></div>
-                  </div>
+                    </Grid>
+                  </Paper>
 
-                  <div className="flex flex-wrap gap-4 mb-4">
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 bg-blue-600 mr-2"></div>
-                      <span>Seleccionado</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 bg-red-200 mr-2"></div>
-                      <span>Ocupado</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 bg-white border mr-2"></div>
-                      <span>Disponible</span>
-                    </div>
-                  </div>
+                  <Box textAlign="center" mb={2}>
+                    <Typography variant="caption" color="text.secondary">Pantalla</Typography>
+                    <Box width="100%" height={6} bgcolor="grey.400" my={1} borderRadius={2} />
+                  </Box>
+
+                  <Box display="flex" gap={3} mb={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Button variant="contained" color="primary" size="small" sx={{ minWidth: 24, minHeight: 24, p: 0 }} disabled />
+                      <Typography variant="caption">Seleccionado</Typography>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Button variant="contained" color="error" size="small" sx={{ minWidth: 24, minHeight: 24, p: 0 }} disabled />
+                      <Typography variant="caption">Ocupado</Typography>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Button variant="outlined" size="small" sx={{ minWidth: 24, minHeight: 24, p: 0 }} disabled />
+                      <Typography variant="caption">Disponible</Typography>
+                    </Box>
+                  </Box>
                 </>
               )}
-            </div>
+            </Box>
           )}
 
           {selectedSeat && (
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg">
-              <div className="max-w-2xl mx-auto flex justify-between items-center">
-                <div>
-                  <p className="font-medium">Asiento seleccionado: Fila {selectedSeat.fila}, Columna {selectedSeat.columna}</p>
-                </div>
-                <button
+            <Paper elevation={3} sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, p: 2, borderRadius: 0 }}>
+              <Box maxWidth={700} mx="auto" display="flex" justifyContent="space-between" alignItems="center">
+                <Typography fontWeight="medium">
+                  Asiento seleccionado: Fila {selectedSeat.fila}, Columna {selectedSeat.columna}
+                </Typography>
+                <Button
                   onClick={handlePayment}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                  variant="contained"
+                  color="primary"
                 >
                   Continuar al Pago
-                </button>
-              </div>
-            </div>
+                </Button>
+              </Box>
+            </Paper>
           )}
         </>
       )}
 
       {/* Paso 2: Simulación de pago */}
       {step === 'payment' && selectedFuncion && selectedSeat && (
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">3. Simulación de Pago</h2>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="grid md:grid-cols-2 gap-8">
-              <div>
-                <h3 className="text-lg font-bold mb-4">Resumen</h3>
-                <div className="space-y-2">
-                  <p><strong>Película:</strong> {selectedFuncion.movie.titulo}</p>
-                  <p><strong>Fecha:</strong> {new Date(selectedFuncion.funcion.fecha).toLocaleDateString()}</p>
-                  <p><strong>Hora:</strong> {selectedFuncion.funcion.hora.split(':').slice(0, 2).join(':')}</p>
-                  <p><strong>Sala:</strong> {sala?.nombre}</p>
-                  <p><strong>Asiento:</strong> Fila {selectedSeat.fila}, Columna {selectedSeat.columna}</p>
-                  <p className="mt-4 text-lg"><strong>Total:</strong> $12.50</p>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold mb-4">Método de Pago</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Seleccione método</label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-full p-2 border rounded-lg"
-                    >
-                      <option value="credit">Tarjeta de Crédito</option>
-                      <option value="debit">Tarjeta de Débito</option>
-                      <option value="paypal">PayPal</option>
-                    </select>
-                  </div>
-
-                  {paymentMethod === 'credit' || paymentMethod === 'debit' ? (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Número de Tarjeta</label>
-                        <input 
-                          type="text" 
-                          placeholder="1234 5678 9012 3456" 
-                          className="w-full p-2 border rounded-lg"
+        <Box mb={4}>
+          <Typography variant="h6" mb={2}>3. Simulación de Pago</Typography>
+          <Paper sx={{ p: 3 }}>
+            <Grid container spacing={4}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle1" fontWeight="bold" mb={2}>Resumen</Typography>
+                <Box>
+                  <Typography><strong>Película:</strong> {selectedFuncion.movie.titulo}</Typography>
+                  <Typography><strong>Fecha:</strong> {new Date(selectedFuncion.funcion.fecha).toLocaleDateString()}</Typography>
+                  <Typography><strong>Hora:</strong> {selectedFuncion.funcion.hora.split(':').slice(0, 2).join(':')}</Typography>
+                  <Typography><strong>Sala:</strong> {sala?.nombre}</Typography>
+                  <Typography><strong>Asiento:</strong> Fila {selectedSeat.fila}, Columna {selectedSeat.columna}</Typography>
+                  <Typography mt={2} fontSize={18}><strong>Total:</strong> $12.50</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle1" fontWeight="bold" mb={2}>Método de Pago</Typography>
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel id="payment-method-label">Seleccione método</InputLabel>
+                  <Select
+                    labelId="payment-method-label"
+                    value={paymentMethod}
+                    label="Seleccione método"
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  >
+                    <MenuItem value="credit">Tarjeta de Crédito</MenuItem>
+                    <MenuItem value="debit">Tarjeta de Débito</MenuItem>
+                    <MenuItem value="paypal">PayPal</MenuItem>
+                  </Select>
+                </FormControl>
+                {(paymentMethod === 'credit' || paymentMethod === 'debit') ? (
+                  <Box>
+                    <TextField
+                      label="Número de Tarjeta"
+                      placeholder="1234 5678 9012 3456"
+                      fullWidth
+                      sx={{ mb: 2 }}
+                    />
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <TextField
+                          label="Fecha Exp."
+                          placeholder="MM/AA"
+                          fullWidth
                         />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Fecha Exp.</label>
-                          <input 
-                            type="text" 
-                            placeholder="MM/AA" 
-                            className="w-full p-2 border rounded-lg"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-1">CVV</label>
-                          <input 
-                            type="text" 
-                            placeholder="123" 
-                            className="w-full p-2 border rounded-lg"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-yellow-50 p-4 rounded-lg text-yellow-800">
-                      Serás redirigido a PayPal para completar el pago
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 flex justify-between">
-              <button
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TextField
+                          label="CVV"
+                          placeholder="123"
+                          fullWidth
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                ) : (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    Serás redirigido a PayPal para completar el pago
+                  </Alert>
+                )}
+              </Grid>
+            </Grid>
+            <Box mt={4} display="flex" justifyContent="space-between">
+              <Button
                 onClick={() => setStep('selection')}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                variant="outlined"
               >
                 Volver
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleReservation}
                 disabled={loading.reserva}
-                className={`bg-green-600 text-white px-6 py-2 rounded-lg ${
-                  loading.reserva ? 'opacity-70 cursor-not-allowed' : 'hover:bg-green-700'
-                }`}
+                variant="contained"
+                color="success"
               >
-                {loading.reserva ? 'Procesando...' : 'Confirmar Pago'}
-              </button>
-            </div>
-          </div>
-        </div>
+                {loading.reserva ? <CircularProgress size={24} color="inherit" /> : 'Confirmar Pago'}
+              </Button>
+            </Box>
+          </Paper>
+        </Box>
       )}
 
       {/* Modal de confirmación */}
-      {showConfirmationModal && reservationDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-green-600 mb-2">¡Reserva confirmada!</h2>
-              <p className="text-gray-600">Tu entrada ha sido reservada exitosamente</p>
-            </div>
-            
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-bold mb-3 text-center">Comprobante de reserva</h3>
-              
-              {/* QR simulado */}
-              <div className="flex justify-center mb-4">
-                <div className="w-48 h-48 bg-white border-2 border-gray-300 flex items-center justify-center rounded-lg">
-                  <div className="text-center">
-                    <div className="grid grid-cols-10 gap-1 mx-auto">
-                      {Array.from({length: 100}).map((_, i) => (
-                        <div 
-                          key={i} 
-                          className={`w-3 h-3 ${Math.random() > 0.6 ? 'bg-black' : 'bg-white'} border border-gray-100`}
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-2 text-xs font-mono">{reservationDetails.id}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <button
-              onClick={() => {
-                setShowConfirmationModal(false);
-                setStep('selection');
-                setSelectedFuncion(null);
-                setSelectedSeat(null);
-              }}
-              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
-            >
-              Finalizar
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+      <Dialog
+        open={showConfirmationModal && !!reservationDetails}
+        onClose={() => {
+          setShowConfirmationModal(false);
+          setStep('selection');
+          setSelectedFuncion(null);
+          setSelectedSeat(null);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h5" color="success.main" fontWeight="bold" align="center">
+            ¡Reserva confirmada!
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography align="center" color="text.secondary" mb={2}>
+            Tu entrada ha sido reservada exitosamente
+          </Typography>
+          <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+            <Typography fontWeight="bold" align="center" mb={2}>Comprobante de reserva</Typography>
+            <Box display="flex" justifyContent="center" mb={2}>
+              <Box
+                sx={{
+                  width: 192,
+                  height: 192,
+                  bgcolor: 'white',
+                  border: '2px solid',
+                  borderColor: 'grey.300',
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Box textAlign="center">
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(10, 1fr)',
+                      gap: 0.5,
+                      mx: 'auto'
+                    }}
+                  >
+                    {Array.from({ length: 100 }).map((_, i) => (
+                      <Box
+                        key={i}
+                        sx={{
+                          width: 12,
+                          height: 12,
+                          bgcolor: Math.random() > 0.6 ? 'black' : 'white',
+                          border: '1px solid',
+                          borderColor: 'grey.100'
+                        }}
+                      />
+                    ))}
+                  </Box>
+                  <Typography variant="caption" sx={{ mt: 1, fontFamily: 'monospace' }}>
+                    {reservationDetails?.id}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setShowConfirmationModal(false);
+              setStep('selection');
+              setSelectedFuncion(null);
+              setSelectedSeat(null);
+            }}
+            variant="contained"
+            color="primary"
+            fullWidth
+          >
+            Finalizar
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }
