@@ -7,6 +7,24 @@ import { loginUser } from '@/lib/api';
 import type { UserCredentials } from '@/types/types';
 import Link from 'next/link';
 
+// Función para decodificar el token JWT de forma segura
+const decodeJWT = (token: string) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error decoding JWT:', error);
+    return null;
+  }
+};
+
 export default function LoginPage() {
   const [formData, setFormData] = useState<UserCredentials>({
     email: '',
@@ -29,18 +47,36 @@ export default function LoginPage() {
     try {
       const result = await loginUser(formData);
       
-      if ('token' in result) {
-        if (typeof result.token === 'string') {
-          sessionStorage.setItem('authToken', result.token);
-          router.push('/reservar');
+      if ('token' in result && typeof result.token === 'string') {
+        sessionStorage.setItem('authToken', result.token);
+        
+        // Decodificar el token correctamente
+        const payload = decodeJWT(result.token);
+        
+        if (!payload) {
+          setError('Error al decodificar el token');
+          return;
+        }
+
+        console.log('Token payload:', payload); // Para depuración
+        
+        // Intenta extraer el rol de varias formas
+        const userRole = payload.role ?? payload.rol ?? payload.roles ?? (payload.user && payload.user.role);
+
+        // Muestra el valor extraído en consola
+        console.log('Rol extraído:', userRole);
+
+        if (userRole === "2" || userRole === 2) {
+          router.push('/admin/dashboard'); // Redirige al panel de admin
         } else {
-          setError('Token de autenticación inválido');
+          router.push('/reservar'); // Redirige a la página normal
         }
       } else {
-        setError(result.message || 'Error desconocido');
+        setError(result.message || 'Credenciales inválidas');
       }
     } catch (err) {
       setError('Error de conexión con el servidor');
+      console.error('Login error:', err);
     } finally {
       setLoading(false);
     }

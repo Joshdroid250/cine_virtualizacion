@@ -192,6 +192,70 @@ export const movieService = {
         status: 500
       };
     }
+  },
+
+  getAll: async (): Promise<Movie[] | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/movies`);
+      return await handleResponse<Movie[]>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al cargar películas',
+        status: 500
+      };
+    }
+  },
+  create: async (movieData: Omit<Movie, 'idmovie'>, token: string): Promise<Movie | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/movies`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(movieData)
+      });
+      return await handleResponse<Movie>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al crear película',
+        status: 500
+      };
+    }
+  },
+  update: async (id: number, movieData: Partial<Movie>, token: string): Promise<Movie | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/movies/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(movieData)
+      });
+      return await handleResponse<Movie>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al actualizar película',
+        status: 500
+      };
+    }
+  },
+  delete: async (id: number, token: string): Promise<{ message: string } | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/movies/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      return await handleResponse<{ message: string }>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al eliminar película',
+        status: 500
+      };
+    }
   }
 };
 
@@ -269,4 +333,7 @@ export const reservationService = {
       throw error;
     }
   }
+
+
+  
 };
