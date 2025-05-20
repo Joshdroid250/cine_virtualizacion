@@ -12,24 +12,6 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
 
-  useEffect(() => {
-    // Verificar autenticación y rol al cargar cualquier página de admin
-    const token = sessionStorage.getItem('authToken');
-    if (!token) {
-      router.push('/auth/login');
-      return;
-    }
-
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.role !== 2) {
-        router.push('/');
-      }
-    } catch (err) {
-      router.push('/auth/login');
-    }
-  }, [router]);
-
   return (
     <div className="min-h-screen bg-gray-100">
       <nav className="bg-blue-600 text-white shadow-lg">

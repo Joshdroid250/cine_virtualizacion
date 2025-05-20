@@ -32,20 +32,13 @@ export default function MoviesPage() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('¿Estás seguro de eliminar esta película?')) return;
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/movies/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
-        }
-      });
 
-      if (response.ok) {
-        setMovies(movies.filter(movie => movie.idmovie !== id));
+    try {
+      const result = await movieService.delete(id);
+      if ('message' in result && (result as any).status) {
+        setError(result.message || 'Error al eliminar');
       } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Error al eliminar');
+        setMovies(movies.filter(movie => movie.idmovie !== id));
       }
     } catch (err) {
       setError('Error de conexión');

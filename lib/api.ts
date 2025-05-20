@@ -1,7 +1,7 @@
 // lib/api.ts
 import { UserCredentials, AuthResponse, Reservation, Funcion, Movie, Room } from '../types/types';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 interface ApiError {
   message: string;
@@ -205,13 +205,13 @@ export const movieService = {
       };
     }
   },
-  create: async (movieData: Omit<Movie, 'idmovie'>, token: string): Promise<Movie | ApiError> => {
+  create: async (movieData: Omit<Movie, 'idmovie'>): Promise<Movie | ApiError> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/movies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          
         },
         body: JSON.stringify(movieData)
       });
@@ -223,13 +223,12 @@ export const movieService = {
       };
     }
   },
-  update: async (id: number, movieData: Partial<Movie>, token: string): Promise<Movie | ApiError> => {
+  update: async (id: number, movieData: Partial<Movie>): Promise<Movie | ApiError> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/movies/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(movieData)
       });
@@ -246,7 +245,7 @@ export const movieService = {
       const response = await fetch(`${API_BASE_URL}/api/movies/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          
         }
       });
       return await handleResponse<{ message: string }>(response);
@@ -282,6 +281,18 @@ export const roomService = {
     } catch (error) {
       return {
         message: error instanceof Error ? error.message : 'Error al cargar sala',
+        status: 500
+      };
+    }
+  }, 
+
+  getAll: async (): Promise<Room[] | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/rooms`);
+      return await handleResponse<Room[]>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al cargar rooms',
         status: 500
       };
     }

@@ -66,7 +66,7 @@ export default function LoginPage() {
         // Muestra el valor extraído en consola
         console.log('Rol extraído:', userRole);
 
-        if (userRole === "2" || userRole === 2) {
+        if (userRole === "2") {
           router.push('/admin/dashboard'); // Redirige al panel de admin
         } else {
           router.push('/reservar'); // Redirige a la página normal
