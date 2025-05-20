@@ -34,7 +34,8 @@ export default function MoviesPage() {
     if (!confirm('¿Estás seguro de eliminar esta película?')) return;
 
     try {
-      const result = await movieService.delete(id);
+      // TODO: Replace 'yourToken' with the actual token value
+      const result = await movieService.delete(id, 'yourToken');
       if ('message' in result && (result as any).status) {
         setError(result.message || 'Error al eliminar');
       } else {

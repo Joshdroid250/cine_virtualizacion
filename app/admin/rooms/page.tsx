@@ -32,26 +32,20 @@ export default function RoomsPage() {
   }, []);
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar esta sala?')) return;
+        if (!confirm('¿Estás seguro de eliminar esta funcion?')) return;
     
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/rooms/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
+        try {
+          // TODO: Replace 'yourToken' with the actual token value
+          const result = await roomService.delete(id, 'yourToken');
+          if ('message' in result && (result as any).status) {
+            setError(result.message || 'Error al eliminar');
+          } else {
+            setRooms(rooms.filter(rooms => rooms.idsalas !== id));
+          }
+        } catch (err) {
+          setError('Error de conexión');
         }
-      });
-
-      if (response.ok) {
-        setRooms(rooms.filter(room => room.idsalas !== id));
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Error al eliminar');
-      }
-    } catch (err) {
-      setError('Error de conexión');
-    }
-  };
+      };
 
   if (loading) {
     return <div>Cargando salas...</div>;

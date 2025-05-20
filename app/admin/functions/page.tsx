@@ -33,26 +33,20 @@ export default function FuncionesPage() {
   
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar esta función?')) return;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/funcion/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('authToken')}`
+      if (!confirm('¿Estás seguro de eliminar esta funcion?')) return;
+  
+      try {
+        // TODO: Replace 'yourToken' with the actual token value
+        const result = await funcionService.delete(id, 'yourToken');
+        if ('message' in result && (result as any).status) {
+          setError(result.message || 'Error al eliminar');
+        } else {
+          setFunciones(funciones.filter(funcion => funcion.id !== id));
         }
-      });
-
-      if (response.ok) {
-        setFunciones(funciones.filter(f => f.id !== id));
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Error al eliminar');
+      } catch (err) {
+        setError('Error de conexión');
       }
-    } catch (err) {
-      setError('Error de conexión');
-    }
-  };
+    };
 
   if (loading) return <div>Cargando funciones...</div>;
   if (error) return <div className="text-red-500">{error}</div>;
@@ -62,7 +56,7 @@ export default function FuncionesPage() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Gestión de Funciones</h2>
         <Link 
-          href="/admin/funciones/create"
+          href="/admin/functions/create"
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
           Crear Nueva Función
@@ -91,7 +85,7 @@ export default function FuncionesPage() {
                 <td className="px-6 py-4">{funcion.salas_idsalas}</td>
                 <td className="px-6 py-4 space-x-2">
                   <Link 
-                    href={`/admin/funciones/edit/${funcion.id}`}
+                    href={`/admin/functions/edit/${funcion.id}`}
                     className="text-blue-600 hover:text-blue-800"
                   >
                     Editar

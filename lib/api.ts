@@ -259,6 +259,19 @@ export const movieService = {
 };
 
 export const funcionService = {
+
+   getById: async (id: number): Promise<Funcion | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/funcion/${id}`);
+      return await handleResponse<Funcion>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al cargar funcion',
+        status: 500
+      };
+    }
+  },
+
   getAll: async (): Promise<Funcion[] | ApiError> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/funcion`);
@@ -266,6 +279,57 @@ export const funcionService = {
     } catch (error) {
       return {
         message: error instanceof Error ? error.message : 'Error al cargar funciones',
+        status: 500
+      };
+    }
+  },
+  create: async (funcionData: Omit<Movie, 'id'>): Promise<Movie | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/funcion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          
+        },
+        body: JSON.stringify(funcionData)
+      });
+      return await handleResponse<Movie>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al crear funcion',
+        status: 500
+      };
+    }
+  },
+  update: async (id: number, funcionData: Partial<Funcion>): Promise<Funcion | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/funcion/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(funcionData)
+      });
+      return await handleResponse<Funcion>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al actualizar funcion',
+        status: 500
+      };
+    }
+  },
+  delete: async (id: number, token: string): Promise<{ message: string } | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/funcion/${id}`, {
+        method: 'DELETE',
+        headers: {
+          
+        }
+      });
+      return await handleResponse<{ message: string }>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al eliminar funcion',
         status: 500
       };
     }
@@ -284,7 +348,7 @@ export const roomService = {
         status: 500
       };
     }
-  }, 
+  },
 
   getAll: async (): Promise<Room[] | ApiError> => {
     try {
@@ -292,12 +356,63 @@ export const roomService = {
       return await handleResponse<Room[]>(response);
     } catch (error) {
       return {
-        message: error instanceof Error ? error.message : 'Error al cargar rooms',
+        message: error instanceof Error ? error.message : 'Error al cargar salas',
+        status: 500
+      };
+    }
+  },
+
+  create: async (roomData: Omit<Room, 'id'>): Promise<Room | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/rooms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(roomData),
+      });
+      return await handleResponse<Room>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al crear sala',
+        status: 500
+      };
+    }
+  },
+
+  update: async (id: number, roomData: Partial<Room>): Promise<Room | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/rooms/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(roomData),
+      });
+      return await handleResponse<Room>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al actualizar sala',
+        status: 500
+      };
+    }
+  },
+
+  delete: async (id: number): Promise<{ message: string } | ApiError> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/rooms/${id}`, {
+        method: 'DELETE',
+      });
+      return await handleResponse<{ message: string }>(response);
+    } catch (error) {
+      return {
+        message: error instanceof Error ? error.message : 'Error al eliminar sala',
         status: 500
       };
     }
   }
 };
+
 
 export const reservationService = {
   create: async (reservationData: Omit<Reservation, 'id'>, token: string) => {

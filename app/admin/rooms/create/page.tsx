@@ -1,53 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { roomService } from '@/lib/api';
 import { Alert, Box, Button, CircularProgress, Paper, TextField, Typography } from '@mui/material';
 
-interface EditRoomProps {
-  params: { id: string };
-}
-
-export default function EditRoom({ params }: EditRoomProps) {
+export default function CreateRoom() {
   const router = useRouter();
-  const id = parseInt(params.id, 10);
-
   const [form, setForm] = useState({
     nombre: '',
     fila: '',
     columnas: ''
   });
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    if (!id) {
-      setError('ID de sala no válido');
-      setFetching(false);
-      return;
-    }
-    const fetchRoom = async () => {
-      setFetching(true);
-      setError(null);
-      const result = await roomService.getById(id);
-      if ('message' in result && (result as any).status) {
-        setError(result.message);
-      } else if ('nombre' in result && 'fila' in result && 'columnas' in result) {
-        setForm({
-          nombre: result.nombre,
-          fila: String(result.fila),
-          columnas: String(result.columnas)
-        });
-      } else {
-        setError('Respuesta inesperada del servidor');
-      }
-      setFetching(false);
-    };
-    fetchRoom();
-  }, [id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -55,7 +22,6 @@ export default function EditRoom({ params }: EditRoomProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id) return;
     setLoading(true);
     setError(null);
     setSuccess(false);
@@ -73,7 +39,7 @@ export default function EditRoom({ params }: EditRoomProps) {
         fila: Number(form.fila),
         columnas: Number(form.columnas)
       };
-      const result = await roomService.update(id, data);
+      const result = await roomService.create(data);
       if ('message' in result && (result as any).status) {
         setError(result.message);
         return;
@@ -87,18 +53,10 @@ export default function EditRoom({ params }: EditRoomProps) {
     }
   };
 
-  if (fetching) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   return (
     <Box maxWidth={500} mx="auto" mt={6}>
       <Paper sx={{ p: 4 }}>
-        <Typography variant="h5" mb={3}>Editar Sala</Typography>
+        <Typography variant="h5" mb={3}>Crear Nueva Sala</Typography>
         <form onSubmit={handleSubmit}>
           <TextField
             label="Nombre"
@@ -132,7 +90,7 @@ export default function EditRoom({ params }: EditRoomProps) {
             inputProps={{ min: 1 }}
           />
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          {success && <Alert severity="success" sx={{ mb: 2 }}>Sala actualizada correctamente</Alert>}
+          {success && <Alert severity="success" sx={{ mb: 2 }}>Sala creada correctamente</Alert>}
           <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
             <Button
               variant="outlined"
@@ -149,7 +107,7 @@ export default function EditRoom({ params }: EditRoomProps) {
               disabled={loading}
               startIcon={loading ? <CircularProgress size={20} /> : null}
             >
-              Guardar
+              Crear
             </Button>
           </Box>
         </form>

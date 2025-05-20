@@ -63,6 +63,7 @@ export default function EditMovie({ params }: EditMovieProps) {
     setLoading(true);
     setError(null);
     setSuccess(false);
+    
 
     try {
       const updateData = {
