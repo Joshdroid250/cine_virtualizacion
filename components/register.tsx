@@ -42,7 +42,7 @@ export default function RegisterPage() {
       if ('status' in result) {
         setError(result.message || 'Error en el registro');
       } else {
-        router.push('/auth/login');
+        router.push('/login');
       }
     } catch (err) {
       setError('Error de conexión con el servidor');
